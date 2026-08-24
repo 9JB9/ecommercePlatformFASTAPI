@@ -3,6 +3,7 @@ from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 SQLITE_ALCHEMY_LINK = "sqlite:///my_database.db"
 
+# connect sqlaclhemy to database
 engine = create_engine(
     SQLITE_ALCHEMY_LINK,
     connect_args={"check_same_thread" : False},
