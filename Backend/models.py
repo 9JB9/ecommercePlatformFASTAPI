@@ -2,6 +2,9 @@ from sqlalchemy import ForeignKey, Integer, String, Text, DateTime, Numeric
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from datetime import datetime
 from database import Base
+from collections.abc import AsyncGenerator # this is going to be used to check for an async return value
+from sqlalchemy.ext.asyncio import AsyncSession
+
 """
 Some learning/refresher notes:
     1. inside of the mapped_column(), what is the primary_key and index attributes?
@@ -39,6 +42,11 @@ class Product(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     name: Mapped[str] = mapped_column(String)
     price: Mapped[float] = mapped_column(Numeric(10, 2)) # active price (not fixed)
+    image_url: Mapped[str] = mapped_column(String)
+    gender: Mapped[str] = mapped_column(String)
+    link: Mapped[str] = mapped_column(String) # the stockx link
+    brand: Mapped[str] = mapped_column(String)
+    description: Mapped[str] = mapped_column(String)
 
 class OrderItem(Base):
     # this will represent an order as it is being procesed
@@ -85,4 +93,17 @@ class Order(Base):
 
     items: Mapped[list["OrderItem"]] = relationship(back_populates="order") # sqlalchemy handles the list wrapper as a notice to return multiple rows, its pretty cool
     user: Mapped["User"] = relationship(back_populates="orders")
-    
+
+"""
+    Quick note on AsyncGenerators... Python by default knows they exist, you don't need this import to have them work
+    But unlike 'int' and 'str' and other built in types, there isn't a specific way to refer to async generators in python.
+    Even though without the import if you check for the type of an async generator, it returns 'async_generator'... 
+    In a nutshell, it just falls into, python not having it as a built in type you can refer to, but it is recognized by
+    the interpreter...
+
+    so that's where the import comes in. it gives you an abstract class to work with, that lets you refer to these 
+    async generators... collections.abc are mostly purely for type annotations anyway (they are abstract classes)
+    so this is not exactly CRUCIAL. But as far as my understanding of type annotation goes right now, especially with
+    Pydantic and all this other type stuff, this is important to have either way.
+"""
+
