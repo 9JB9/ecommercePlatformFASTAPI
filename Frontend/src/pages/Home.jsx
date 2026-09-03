@@ -27,8 +27,7 @@ function Home() {
         <>
             <div className="home-content">
                 <div className="home-nav">
-                    <NavBar />
-                    <Link to = {`/${username}/cart`}>Cart</Link>
+                    <NavBar username={username}/>
                 </div>
                 <div className="home-grid">
                     {/* need a loop here to print out the grid of sneaker cards */}

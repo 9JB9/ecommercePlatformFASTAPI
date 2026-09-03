@@ -1,0 +1,16 @@
+.home-content {
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+}
+
+.home-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    overflow: hidden;
+    align-items: center;
+    justify-items: center;
+    gap: 2rem;
+    padding-inline: 1em;
+    padding-block: 2em;
+}

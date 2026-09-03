@@ -12,8 +12,9 @@ function ItemCard({sneaker}) {
             <Link to = {sneaker_url}>
                 <img src={sneaker_img_url}></img>
                 <div className="item-card-info"> 
-                    <h2>{sneaker_name}</h2>
-                    <h3>{sneaker_price}</h3>
+                    <h2>${sneaker_price}</h2>
+                    {/* <h3>{sneaker_name}</h3> */}
+                    <p>{sneaker_name}</p>
                 </div>
             </Link>
         </div>        
