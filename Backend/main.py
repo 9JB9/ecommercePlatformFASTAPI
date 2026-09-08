@@ -47,7 +47,7 @@ app.add_middleware(
 
 
 
-#endpoints
+# endpoints
 @app.get("/api/sneakers") # feel free to change the naming, but this in reference to the main page scrollable feed
 async def get_feed(db: Session = Depends(get_db)):
     """
@@ -57,7 +57,6 @@ async def get_feed(db: Session = Depends(get_db)):
     """ 
 
     # let's start by pulling the data. We need a db session (GG)... and from there we need to actually access the data.
-
     sneakers = db.scalars(select(Product)).all() # returns a list with all the items from the query
 
     # Great! the front end will take this, pass it into a card component and render some nice things
