@@ -19,7 +19,7 @@ def seedDB (): # doesn't need to be async, we are running this once and never to
         product = Product(
             name=sneaker.get("title"),
             brand=sneaker.get("brand"),
-            price=sneaker.get("avg_price"), # sadly current_price isn't available, I think there is a way to get live pricing with KicksDB
+            price=sneaker.get("avg_price"),# sadly current_price isn't available, I think there is a way to get live pricing with KicksDB
                                            # but that would require constant pinging of their API, and I don't get paid enough to pay for their
                                            # premium API services (I am broke)
             image_url=sneaker.get("image"),
@@ -29,7 +29,6 @@ def seedDB (): # doesn't need to be async, we are running this once and never to
         )
         db.add(product)
         print(f"Successfully added {sneaker.get("title")} to the DB ✅")
-
     db.commit()
     db.close() # couldn't this also be written outside the function and have this still work?
 

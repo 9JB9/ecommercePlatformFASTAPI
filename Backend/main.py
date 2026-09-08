@@ -12,6 +12,9 @@ from models import Product
 
 # Cross Origin Resource Sharing related imports (Frontend - Backend back and forth interactions)
 from fastapi.middleware.cors import CORSMiddleware
+
+# schema related imports
+from schemas import SneakerResponse, ProductResponse
 # def main():
 #     print("Hello from ecommerceplatformfastapi!")
 
@@ -48,7 +51,7 @@ app.add_middleware(
 
 
 # endpoints
-@app.get("/api/sneakers") # feel free to change the naming, but this in reference to the main page scrollable feed
+@app.get("/api/sneakers", response_model=SneakerResponse) # feel free to change the naming, but this in reference to the main page scrollable feed
 async def get_feed(db: Session = Depends(get_db)):
     """
         WE (yes we) ARE GOING TO TAKE THE SNEAKERS AND LOAD THEM UP AT THE LANDING PAGE...
@@ -63,5 +66,5 @@ async def get_feed(db: Session = Depends(get_db)):
     return {"Sneakers": sneakers}
 
 
-if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+# if __name__ == "__main__":
+#     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
