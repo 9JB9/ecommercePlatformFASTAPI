@@ -4,6 +4,7 @@ import "../components/NavBar.jsx"
 import NavBar from "../components/NavBar.jsx"
 import { Link } from "react-router-dom"
 import ItemCard from "../components/ItemCard.jsx"
+
 function Home() {
     
     const [sneakers, setSneakers] = useState([]) // will be used for the feed
