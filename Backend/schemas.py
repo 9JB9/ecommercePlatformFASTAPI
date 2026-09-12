@@ -2,7 +2,7 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field
 # from .models import Product
 
 # Schemas related to 
-class ProductResponse(BaseModel):
+class SneakerResponse(BaseModel):
     id: int
     name: str
     price: float
@@ -11,6 +11,17 @@ class ProductResponse(BaseModel):
     link: str
     brand: str
     description: str
-class SneakerResponse(BaseModel):
-    Sneakers: list[ProductResponse]
+
+class UserBase(BaseModel):
+    email: EmailStr
+
+
+class UserCreate(UserBase):
+    password: str
+
+class UserResponse(UserBase):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+
 

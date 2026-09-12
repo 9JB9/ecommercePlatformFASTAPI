@@ -1,31 +1,31 @@
-from fastapi import Depends, FastAPI, HTTPException, Request, status
-from fastapi.staticfiles import StaticFiles
-import uvicorn
+from typing import Annotated
 
-# database related imports
-import models
+# Fastapi 
+from fastapi import Depends, FastAPI, status, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+
+# Database
 from database import engine, Base, get_db
-from routers import admins, orders, users
 from sqlalchemy.orm import Session
 from sqlalchemy import select
-from models import Product
+import models
 
-# Cross Origin Resource Sharing related imports (Frontend - Backend back and forth interactions)
+# Cross Origin Resource Sharing (front and backend connection)
 from fastapi.middleware.cors import CORSMiddleware
 
-# schema related imports
-from schemas import SneakerResponse, ProductResponse
-# def main():
-#     print("Hello from ecommerceplatformfastapi!")
+# Schemas
+from schemas import SneakerResponse, UserResponse, UserCreate
 
-# create tables in database
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
+# Table creation in database
 Base.metadata.create_all(bind=engine)
 
-# create app
 app = FastAPI()
 
-# CORS (Cross origin resource sharing) configuration
-origins = [ # the list of 'origins' that we are going to allow to interact with this backend (the following are common React origins that I've worked with at least)
+# CORS configuration
+origins = [
     "http://localhost:5173",
     "http://localhost:3000"
 ]
@@ -39,32 +39,60 @@ app.add_middleware(
 )
 
 
-# mount other apps to URL path
-# app.mount("/static", StaticFiles(directory="static"), name="static")
-# app.mount("/media", StaticFiles(directory="media"), name="media")
+# Get Sneakers
+@app.get(
+    "/api/sneakers",
+    response_model=list[SneakerResponse]
+)
+def get_sneakers(db: Annotated[Session, Depends(get_db)]):
+    result = db.execute(select(models.Product))
+    sneakers = result.scalars().all()
+    return sneakers
 
 
-# # create router endpoints
-# app.include_router(users.router, prefix="/api/users", tags=["users"])
-# app.include_router(users.router, prefix="/api/posts", tags=["posts"])
+# Create User
+@app.post(
+    "/api/user",
+    response_model=UserResponse,
+    status_code=status.HTTP_201_CREATED
+)
+def create_user(user: UserCreate, db: Annotated[Session, Depends(get_db)]):
 
+    result = db.execute(
+        select(models.User).where(models.User.email == user.email)
+    )
 
+    existing_user = result.scalars().first()
 
-# endpoints
-@app.get("/api/sneakers", response_model=SneakerResponse) # feel free to change the naming, but this in reference to the main page scrollable feed
-async def get_feed(db: Session = Depends(get_db)):
-    """
-        WE (yes we) ARE GOING TO TAKE THE SNEAKERS AND LOAD THEM UP AT THE LANDING PAGE...
-        We can work out a proper load buffer later, but since we only have 180 sneakers to work with right now
-        we can just go full caveman and load everything at once and doom scroll through all the listings
-    """ 
+    if existing_user:
+        raise HTTPException(detail="User already exists", status_code=status.HTTP_404_NOT_FOUND)
 
-    # let's start by pulling the data. We need a db session (GG)... and from there we need to actually access the data.
-    sneakers = db.scalars(select(Product)).all() # returns a list with all the items from the query
+    new_user = models.User(
+        email= user.email,
+        password= user.password
+    )
 
-    # Great! the front end will take this, pass it into a card component and render some nice things
-    return {"Sneakers": sneakers}
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
 
+    return new_user
 
-# if __name__ == "__main__":
-#     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+# Handle General HTTP Errors
+@app.exception_handler(StarletteHTTPException)
+def handle_general_http_errors(request: Request, exception: StarletteHTTPException):
+
+    message = {"detail": exception.detail if exception else "This endpoint does not exist."}
+
+    return JSONResponse(
+        content=message,
+        status_code=status.HTTP_404_NOT_FOUND
+    )
+
+# Handle Validation Errors
+@app.exception_handler(RequestValidationError)
+def handle_validation_errors(request: Request, exception: StarletteHTTPException):
+    return JSONResponse(
+            content=exception.errors(),
+            status_code=status.HTTP_404_NOT_FOUND
+    )
