@@ -19,6 +19,8 @@ from schemas import SneakerResponse, UserResponse, UserCreate
 
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+import routers
+
 # Table creation in database
 Base.metadata.create_all(bind=engine)
 
@@ -38,6 +40,8 @@ app.add_middleware(
     allow_headers=["*"]
 )
 
+app.include_router(routers.users, prefix="/api/users", tags=["users"])
+app.include_router(routers.cart, prefix="/api/cart", tags=["cart"])
 
 # Get Sneakers
 @app.get(
@@ -49,34 +53,6 @@ def get_sneakers(db: Annotated[Session, Depends(get_db)]):
     sneakers = result.scalars().all()
     return sneakers
 
-
-# Create User
-@app.post(
-    "/api/user",
-    response_model=UserResponse,
-    status_code=status.HTTP_201_CREATED
-)
-def create_user(user: UserCreate, db: Annotated[Session, Depends(get_db)]):
-
-    result = db.execute(
-        select(models.User).where(models.User.email == user.email)
-    )
-
-    existing_user = result.scalars().first()
-
-    if existing_user:
-        raise HTTPException(detail="User already exists", status_code=status.HTTP_404_NOT_FOUND)
-
-    new_user = models.User(
-        email= user.email,
-        password= user.password
-    )
-
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
-
-    return new_user
 
 # Handle General HTTP Errors
 @app.exception_handler(StarletteHTTPException)

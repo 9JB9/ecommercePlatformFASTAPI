@@ -1,7 +1,6 @@
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 # from .models import Product
 
-# Schemas related to 
 class SneakerResponse(BaseModel):
     id: int
     name: str
@@ -15,7 +14,6 @@ class SneakerResponse(BaseModel):
 class UserBase(BaseModel):
     email: EmailStr
 
-
 class UserCreate(UserBase):
     password: str
 
@@ -24,4 +22,16 @@ class UserResponse(UserBase):
 
     id: int
 
+class CartItemBase(BaseModel):
+    product_id: str 
 
+class CartItemCreate(BaseModel):
+    pass
+
+class CartItemResponse(BaseModel):
+    id: int
+    quantity: int
+    product: SneakerResponse
+
+class OrderResponse(BaseModel):
+    
