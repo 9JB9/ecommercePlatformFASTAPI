@@ -23,7 +23,7 @@ class UserResponse(UserBase):
     id: int
 
 class CartItemBase(BaseModel):
-    product_id: str 
+    product_id: int
 
 class CartItemCreate(BaseModel):
     pass
@@ -34,4 +34,3 @@ class CartItemResponse(BaseModel):
     product: SneakerResponse
 
 class OrderResponse(BaseModel):
-    

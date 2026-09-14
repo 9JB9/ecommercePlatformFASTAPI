@@ -5,7 +5,7 @@ from fastapi import Depends, status, HTTPException, APIRouter
 
 # Database
 from database import get_db
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import select
 import models
 
@@ -33,7 +33,9 @@ POST Checkout cart items
 )
 def get_cart_items(user_id: int, db: Annotated[Session, Depends(get_db)]):
     result = db.execute(
-        select(models.CartItem).where(models.CartItem.user_id == user_id)
+        select(models.CartItem)
+        .options(selectinload)
+        .where(models.CartItem.user_id == user_id)
     )
 
     cart_items = result.scalars().all()
@@ -62,7 +64,8 @@ def add_item_to_cart(item: CartItemCreate, user_id: int, db: Annotated[Session, 
 
     # verify item.product_id is an actual product (not sure if necessary)
     result = db.execute(
-        select(models.Product).where(models.Product.id == item.product_id)
+        select(models.Product).
+        where(models.Product.id == item.product_id)
     )
 
     existing_product = result.scalars().first()
@@ -88,10 +91,21 @@ def add_item_to_cart(item: CartItemCreate, user_id: int, db: Annotated[Session, 
     "/{user_id}/checkout",
     response_model=OrderResponse,
 )
-def checkout_cart(item: CartItemCreate, user_id: int, db: Annotated[Session, Depends(get_db)]):
+def checkout_cart(user_id: int, db: Annotated[Session, Depends(get_db)]):
     # first, add order to database
+    
+    # add cart item prices for user id
+
+    result = db.execute(
+        select(models.CartItem)
+    )
+    
+    new_order = models.Order(
+        user_id=user_id,
+        
+    )
+
 
     # then, add order items to database
 
     # delete cart items
-

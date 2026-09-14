@@ -1,6 +1,6 @@
 from sqlalchemy import ForeignKey, Integer, String, Text, DateTime, Numeric
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from datetime import datetime
+from datetime import datetime, UTC
 from database import Base
 
 
@@ -61,7 +61,10 @@ class Order(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     status: Mapped[str] = mapped_column(String, default="pending")
     total: Mapped[float] = mapped_column(Numeric(10,2))
-    created_date: Mapped[datetime] = mapped_column(DateTime)
+    created_date: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+    )
 
     items: Mapped[list["OrderItem"]] = relationship(back_populates="order") # sqlalchemy handles the list wrapper as a notice to return multiple rows, its pretty cool
     user: Mapped["User"] = relationship(back_populates="orders")
