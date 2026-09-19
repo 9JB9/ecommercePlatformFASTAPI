@@ -1,44 +1,33 @@
 from typing import Annotated
 
-# Fastapi 
+# Fastapi
 from fastapi import Depends, status, HTTPException, APIRouter
-
 # Database
 from database import get_db
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import select
 import models
 
+# Dependencies
+from dependencies import get_existing_user
+
 # Schemas
-from schemas import CartItemResponse, CartItemCreate, OrderResponse
+from schemas import CartItemResponse, CartItemCreate, CartItemUpdate
 
 router = APIRouter()
-
-"""
-Brainstorming
-Must be same user
-
-GET Access items in cart
-POST Add item to cart
-PATCH Edit item in cart
-    -increase amount or decrease
-DELETE Delete item in cart
-POST Checkout cart items
-"""
 
 # GET, Access items in cart
 @router.get(
     "/{user_id}",
     response_model=list[CartItemResponse],
 )
-def get_cart_items(user_id: int, db: Annotated[Session, Depends(get_db)]):
-    result = db.execute(
-        select(models.CartItem)
-        .options(selectinload)
-        .where(models.CartItem.user_id == user_id)
-    )
+def get_cart_items(user: Annotated[models.User, Depends(get_existing_user)], db: Annotated[Session, Depends(get_db)]):
 
-    cart_items = result.scalars().all()
+    cart_items = db.execute(
+        select(models.CartItem)
+        .options(selectinload(models.CartItem.product))
+        .where(models.CartItem.user_id == user.user_id)
+    ).scalars().all()
 
     return cart_items
 
@@ -46,36 +35,33 @@ def get_cart_items(user_id: int, db: Annotated[Session, Depends(get_db)]):
 @router.post(
     "/{user_id}",
     response_model=CartItemResponse,
+    status_code=status.HTTP_201_CREATED
 )
-def add_item_to_cart(item: CartItemCreate, user_id: int, db: Annotated[Session, Depends(get_db)]):
+def add_item_to_cart(item: CartItemCreate, user: Annotated[models.User, Depends(get_existing_user)], db: Annotated[Session, Depends(get_db)]):
 
-    # if item exists in cart, increase quantity by 1 
-    result = db.execute(
-        select(models.CartItem).where(models.CartItem.user_id == user_id).where(models.CartItem.product_id == item.product_id)
-    )
+    # verify item.product_id is an actual product (not sure if necessary)
+    existing_product = db.execute(
+        select(models.Product).
+        where(models.Product.product_id == item.product_id)
+    ).scalars().first()
 
-    existing_cart_item = result.scalars().first()
+    if not existing_product:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
+
+    # if item exists in cart, increase quantity by 1
+    existing_cart_item = db.execute(
+        select(models.CartItem).where(models.CartItem.user_id == user.user_id).where(models.CartItem.product_id == item.product_id)
+    ).scalars().first()
 
     if existing_cart_item:
         existing_cart_item.quantity += 1
-        db.add(existing_cart_item)
         db.commit()
         db.refresh(existing_cart_item, attribute_names=["user", "product"])
-
-    # verify item.product_id is an actual product (not sure if necessary)
-    result = db.execute(
-        select(models.Product).
-        where(models.Product.id == item.product_id)
-    )
-
-    existing_product = result.scalars().first()
-
-    if not existing_product:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"message": "This product does not exist."})
+        return existing_cart_item
 
     # add item to database
     new_item = models.CartItem(
-        user_id=user_id,
+        user_id=user.user_id,
         product_id=item.product_id,
         quantity=1
     )
@@ -86,26 +72,59 @@ def add_item_to_cart(item: CartItemCreate, user_id: int, db: Annotated[Session, 
 
     return new_item
 
-# POST, Checkout cart items
-@router.post(
-    "/{user_id}/checkout",
-    response_model=OrderResponse,
+# PATCH, Edit item in cart
+@router.patch(
+    "/{user_id}/{cart_item_id}",
+    response_model=CartItemResponse,
 )
-def checkout_cart(user_id: int, db: Annotated[Session, Depends(get_db)]):
-    # first, add order to database
-    
-    # add cart item prices for user id
+def update_cart_item(cart_item_id: int, item: CartItemUpdate, user: Annotated[models.User, Depends(get_existing_user)], db: Annotated[Session, Depends(get_db)]):
 
-    result = db.execute(
+    existing_cart_item = db.execute(
         select(models.CartItem)
-    )
-    
-    new_order = models.Order(
-        user_id=user_id,
-        
-    )
+        .where(models.CartItem.cart_item_id == cart_item_id)
+        .where(models.CartItem.user_id == user.user_id)
+    ).scalars().first()
 
+    if not existing_cart_item:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cart item not found")
 
-    # then, add order items to database
+    existing_cart_item.quantity = item.quantity
+    db.commit()
+    db.refresh(existing_cart_item, attribute_names=["product"])
 
-    # delete cart items
+    return existing_cart_item
+
+# DELETE, Delete item in cart
+@router.delete(
+    "/{user_id}/{cart_item_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_cart_item(cart_item_id: int, user: Annotated[models.User, Depends(get_existing_user)], db: Annotated[Session, Depends(get_db)]):
+
+    existing_cart_item = db.execute(
+        select(models.CartItem)
+        .where(models.CartItem.cart_item_id == cart_item_id)
+        .where(models.CartItem.user_id == user.user_id)
+    ).scalars().first()
+
+    if not existing_cart_item:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cart item not found")
+
+    db.delete(existing_cart_item)
+    db.commit()
+
+# DELETE, Delete all items in cart
+@router.delete(
+    "/{user_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_all_cart_items(user: Annotated[models.User, Depends(get_existing_user)], db: Annotated[Session, Depends(get_db)]):
+
+    cart_items = db.execute(
+        select(models.CartItem).where(models.CartItem.user_id == user.user_id)
+    ).scalars().all()
+
+    for cart_item in cart_items:
+        db.delete(cart_item)
+
+    db.commit()

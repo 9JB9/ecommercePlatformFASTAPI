@@ -1,25 +1,17 @@
-from typing import Annotated
-
 # Fastapi 
-from fastapi import Depends, FastAPI, status, HTTPException, Request
+from fastapi import FastAPI, status, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 # Database
-from database import engine, Base, get_db
-from sqlalchemy.orm import Session
-from sqlalchemy import select
-import models
+from database import engine, Base
 
 # Cross Origin Resource Sharing (front and backend connection)
 from fastapi.middleware.cors import CORSMiddleware
 
-# Schemas
-from schemas import SneakerResponse, UserResponse, UserCreate
-
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-import routers
+from routers import cart, orders, products, users
 
 # Table creation in database
 Base.metadata.create_all(bind=engine)
@@ -40,35 +32,27 @@ app.add_middleware(
     allow_headers=["*"]
 )
 
-app.include_router(routers.users, prefix="/api/users", tags=["users"])
-app.include_router(routers.cart, prefix="/api/cart", tags=["cart"])
-
-# Get Sneakers
-@app.get(
-    "/api/sneakers",
-    response_model=list[SneakerResponse]
-)
-def get_sneakers(db: Annotated[Session, Depends(get_db)]):
-    result = db.execute(select(models.Product))
-    sneakers = result.scalars().all()
-    return sneakers
+app.include_router(users.router, prefix="/api/users", tags=["users"])
+app.include_router(products.router, prefix="/api/products", tags=["products"])
+app.include_router(cart.router, prefix="/api/cart", tags=["cart"])
+app.include_router(orders.router, prefix="/api/orders", tags=["orders"])
 
 
 # Handle General HTTP Errors
 @app.exception_handler(StarletteHTTPException)
 def handle_general_http_errors(request: Request, exception: StarletteHTTPException):
 
-    message = {"detail": exception.detail if exception else "This endpoint does not exist."}
+    message = {"detail": exception.detail}
 
     return JSONResponse(
         content=message,
-        status_code=status.HTTP_404_NOT_FOUND
+        status_code=exception.status_code
     )
 
 # Handle Validation Errors
 @app.exception_handler(RequestValidationError)
-def handle_validation_errors(request: Request, exception: StarletteHTTPException):
+def handle_validation_errors(request: Request, exception: RequestValidationError):
     return JSONResponse(
             content=exception.errors(),
-            status_code=status.HTTP_404_NOT_FOUND
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT
     )

@@ -13,7 +13,7 @@ function Home() {
     // ** write the useEffect to load the shoes here
     
     useEffect(() => {
-        fetch("http://localhost:8000/api/sneakers") // the port in which our api is running
+        fetch("http://localhost:8000/api/products") // the port in which our api is running
         .then((data) => data.json()) 
         .then((data) => { // this is needed because .json() also returns a promise (async things)
             const sneakers_data = data.Sneakers

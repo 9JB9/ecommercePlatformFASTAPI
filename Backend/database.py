@@ -1,7 +1,9 @@
+from pathlib import Path
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
-SQLITE_ALCHEMY_LINK = "sqlite:///my_database.db"
+DB_PATH = Path(__file__).resolve().parent / "my_database.db" # anchored to Backend/ so the db resolves the same regardless of cwd
+SQLITE_ALCHEMY_LINK = f"sqlite:///{DB_PATH}"
 
 # connect sqlaclhemy to database
 engine = create_engine(
