@@ -1,4 +1,5 @@
 from typing import Annotated
+from datetime import datetime, UTC
 
 # Fastapi 
 from fastapi import Depends, status, HTTPException, APIRouter
@@ -83,31 +84,24 @@ def update_user(user_update: UserUpdate, user: Annotated[models.User, Depends(ge
 
 # DELETE, delete user
 # will cascade delete all cart items too
+# users with no orders are hard deleted
+# users with orders are soft deleted + anonymized so order history is kept
 @router.delete(
     "/{user_id}",
     status_code=status.HTTP_204_NO_CONTENT,
 )
 def delete_user(user: Annotated[models.User, Depends(get_existing_user)], db: Annotated[Session, Depends(get_db)]):
 
-    db.delete(user)
+    has_orders = db.execute(
+        select(models.Order.order_id).where(models.Order.user_id == user.user_id).limit(1)
+    ).first()
+
+    if has_orders:
+        # scrub personal data, the row stays so Order.user_id still points at something
+        user.email = f"deleted-{user.user_id}@invalid"
+        user.password = ""
+        user.deleted_at = datetime.now(UTC)
+        user.cart_items.clear() # delete-orphan cascade removes the cart rows
+    else:
+        db.delete(user)
     db.commit()
-
-
-
-
-# For testing only
-
-# Delete all User
-# will cascade delete all cart items too
-# @router.delete(
-#     "/delete-all-users"
-# )
-# def delete_users(db: Annotated[Session, Depends(get_db)]):
-#     users = db.execute(select(models.User)).scalars().all()
-
-#     for user in users:
-#         db.delete(user)
-
-#     db.commit()
-    
-#     return JSONResponse(content={"message": "successfully deleted all users"})

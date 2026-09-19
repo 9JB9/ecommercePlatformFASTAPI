@@ -10,12 +10,12 @@ from sqlalchemy import select
 import models
 
 
-# Look up the user from the {user_id} path param, 404 if they don't exist
+# Look up the user from the {user_id} path param, 404 if they don't exist or were soft-deleted
 # (swap for get_current_user once auth/tokens exist)
 def get_existing_user(user_id: int, db: Annotated[Session, Depends(get_db)]) -> models.User:
 
     existing_user = db.execute(
-        select(models.User).where(models.User.user_id == user_id)
+        select(models.User).where(models.User.user_id == user_id, models.User.deleted_at.is_(None))
     ).scalars().first()
 
     if not existing_user:
