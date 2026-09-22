@@ -10,7 +10,7 @@ class User(Base):
     user_id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     email: Mapped[str] = mapped_column(String)
 
-    password: Mapped[str] = mapped_column(String)
+    password_hash: Mapped[str] = mapped_column(String(200), nullable=False)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None) # set when a user with orders is "deleted", see delete_user
     orders: Mapped[list["Order"]] = relationship(back_populates="user") # intentionally no cascade: orders are records to keep, users with orders are soft-deleted
     cart_items: Mapped[list["CartItem"]] = relationship(

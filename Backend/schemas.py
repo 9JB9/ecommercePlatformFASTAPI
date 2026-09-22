@@ -13,18 +13,26 @@ class SneakerResponse(BaseModel):
 
 class UserBase(BaseModel):
     email: EmailStr
+    # add username attribute
 
 class UserCreate(UserBase):
-    password: str
+    password: str = Field(min_length=8)
+
+class UserPublic(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    user_id: int
+
+class UserPrivate(UserPublic):
+    email: EmailStr
 
 class UserUpdate(BaseModel):
     email: EmailStr | None = Field(default=None)
     password: str | None = Field(default=None)
 
-class UserResponse(UserBase):
-    model_config = ConfigDict(from_attributes=True)
-
-    user_id: int
+class Token(BaseModel):
+    access_token: str
+    token_type: str
 
 class CartItemBase(BaseModel):
     product_id: int
@@ -49,4 +57,4 @@ class OrderResponse(BaseModel):
     order_id: int
     total: int
     items: list[OrderItemResponse]
-    user: UserResponse
+    user: UserPublic
