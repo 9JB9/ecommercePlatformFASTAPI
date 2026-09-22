@@ -9,7 +9,7 @@ from sqlalchemy import select
 import models
 
 # Dependencies
-from dependencies import get_existing_user
+from auth import CurrentUser
 
 # Schemas
 from schemas import CartItemResponse, CartItemCreate, CartItemUpdate
@@ -18,10 +18,10 @@ router = APIRouter()
 
 # GET, Access items in cart
 @router.get(
-    "/{user_id}",
+    "",
     response_model=list[CartItemResponse],
 )
-def get_cart_items(user: Annotated[models.User, Depends(get_existing_user)], db: Annotated[Session, Depends(get_db)]):
+def get_cart_items(user: CurrentUser, db: Annotated[Session, Depends(get_db)]):
 
     cart_items = db.execute(
         select(models.CartItem)
@@ -33,11 +33,11 @@ def get_cart_items(user: Annotated[models.User, Depends(get_existing_user)], db:
 
 # POST, Add item to cart
 @router.post(
-    "/{user_id}",
+    "",
     response_model=CartItemResponse,
     status_code=status.HTTP_201_CREATED
 )
-def add_item_to_cart(item: CartItemCreate, user: Annotated[models.User, Depends(get_existing_user)], db: Annotated[Session, Depends(get_db)]):
+def add_item_to_cart(item: CartItemCreate, user: CurrentUser, db: Annotated[Session, Depends(get_db)]):
 
     # verify item.product_id is an actual product (not sure if necessary)
     existing_product = db.execute(
@@ -74,10 +74,10 @@ def add_item_to_cart(item: CartItemCreate, user: Annotated[models.User, Depends(
 
 # PATCH, Edit item in cart
 @router.patch(
-    "/{user_id}/{cart_item_id}",
+    "/{cart_item_id}",
     response_model=CartItemResponse,
 )
-def update_cart_item(cart_item_id: int, item: CartItemUpdate, user: Annotated[models.User, Depends(get_existing_user)], db: Annotated[Session, Depends(get_db)]):
+def update_cart_item(cart_item_id: int, item: CartItemUpdate, user: CurrentUser, db: Annotated[Session, Depends(get_db)]):
 
     existing_cart_item = db.execute(
         select(models.CartItem)
@@ -96,10 +96,10 @@ def update_cart_item(cart_item_id: int, item: CartItemUpdate, user: Annotated[mo
 
 # DELETE, Delete item in cart
 @router.delete(
-    "/{user_id}/{cart_item_id}",
+    "/{cart_item_id}",
     status_code=status.HTTP_204_NO_CONTENT,
 )
-def delete_cart_item(cart_item_id: int, user: Annotated[models.User, Depends(get_existing_user)], db: Annotated[Session, Depends(get_db)]):
+def delete_cart_item(cart_item_id: int, user: CurrentUser, db: Annotated[Session, Depends(get_db)]):
 
     existing_cart_item = db.execute(
         select(models.CartItem)
@@ -115,10 +115,10 @@ def delete_cart_item(cart_item_id: int, user: Annotated[models.User, Depends(get
 
 # DELETE, Delete all items in cart
 @router.delete(
-    "/{user_id}",
+    "",
     status_code=status.HTTP_204_NO_CONTENT,
 )
-def delete_all_cart_items(user: Annotated[models.User, Depends(get_existing_user)], db: Annotated[Session, Depends(get_db)]):
+def delete_all_cart_items(user: CurrentUser, db: Annotated[Session, Depends(get_db)]):
 
     cart_items = db.execute(
         select(models.CartItem).where(models.CartItem.user_id == user.user_id)

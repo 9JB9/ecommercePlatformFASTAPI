@@ -1,9 +1,9 @@
+import secrets
 from typing import Annotated
 from datetime import datetime, UTC, timedelta
 
-# Fastapi 
+# Fastapi
 from fastapi import Depends, status, HTTPException, APIRouter
-from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordRequestForm
 
 from database import get_db
@@ -15,14 +15,23 @@ import models
 from schemas import UserPublic, UserCreate, UserUpdate, UserPrivate, Token
 
 # Authentication
-from auth import create_access_token, hash_password, oauth2_scheme, verify_access_token, verify_password
+from auth import create_access_token, hash_password, verify_password, CurrentUser
 from config import settings
-
-# Dependencies
-from dependencies import get_existing_user
 
 
 router = APIRouter()
+
+
+# Ownership check: the {user_id} in the path must be the user the token belongs to
+def get_owned_user(user_id: int, user: CurrentUser) -> models.User:
+    if user.user_id != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to access this user",
+        )
+    return user
+
+OwnedUser = Annotated[models.User, Depends(get_owned_user)]
 
 # POST, create user
 @router.post(
@@ -85,40 +94,10 @@ def login_for_access_token(
     return Token(access_token=access_token, token_type="bearer")
 
 ## get_current_user
+# declared before /{user_id} so "me" is not parsed as a user id
 @router.get("/me", response_model=UserPrivate)
-def get_current_user(
-    token: Annotated[str, Depends(oauth2_scheme)],
-    db: Annotated[Session, Depends(get_db)],
-):
+def read_current_user(user: CurrentUser):
     """Get the currently authenticated user."""
-    user_id = verify_access_token(token)
-    if user_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    # Validate user_id is a valid integer (defense against malformed JWT)
-    try:
-        user_id_int = int(user_id)
-    except (TypeError, ValueError):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    result = db.execute(
-        select(models.User).where(models.User.user_id == user_id_int),
-    )
-    user = result.scalars().first()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
     return user
 
 # GET, get user
@@ -126,9 +105,16 @@ def get_current_user(
     "/{user_id}",
     response_model=UserPublic,
 )
-def get_user(user: Annotated[models.User, Depends(get_existing_user)]):
+def get_user(user_id: int, db: Annotated[Session, Depends(get_db)]):
 
-    return user
+    existing_user = db.execute(
+        select(models.User).where(models.User.user_id == user_id)
+    ).scalars().first()
+
+    if not existing_user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    return existing_user
 
 
 # PATCH, update user
@@ -136,9 +122,19 @@ def get_user(user: Annotated[models.User, Depends(get_existing_user)]):
     "/{user_id}",
     response_model=UserPrivate,
 )
-def update_user(user_update: UserUpdate, user: Annotated[models.User, Depends(get_existing_user)], db: Annotated[Session, Depends(get_db)]):
+def update_user(user_update: UserUpdate, user: OwnedUser, db: Annotated[Session, Depends(get_db)]):
 
     update_data = user_update.model_dump(exclude_unset=True) # converted into dictionary
+    current_password = update_data.pop("current_password", None)
+
+    # changing credentials requires proving you know the current password,
+    # so a stolen token alone cannot lock the owner out of their account
+    if "password" in update_data or "email" in update_data:
+        if not current_password or not verify_password(current_password, user.password_hash):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Current password is incorrect",
+            )
 
     # if email is changing, make sure no other user already has it
     if "email" in update_data:
@@ -151,7 +147,9 @@ def update_user(user_update: UserUpdate, user: Annotated[models.User, Depends(ge
 
     for field, value in update_data.items():
         if field == "email":
-            setattr(user, field, value.lower())
+            user.email = value.lower()
+        elif field == "password":
+            user.password_hash = hash_password(value)
         else:
             setattr(user, field, value)
 
@@ -168,7 +166,7 @@ def update_user(user_update: UserUpdate, user: Annotated[models.User, Depends(ge
     "/{user_id}",
     status_code=status.HTTP_204_NO_CONTENT,
 )
-def delete_user(user: Annotated[models.User, Depends(get_existing_user)], db: Annotated[Session, Depends(get_db)]):
+def delete_user(user: OwnedUser, db: Annotated[Session, Depends(get_db)]):
 
     has_orders = db.execute(
         select(models.Order.order_id).where(models.Order.user_id == user.user_id).limit(1)
@@ -176,8 +174,8 @@ def delete_user(user: Annotated[models.User, Depends(get_existing_user)], db: An
 
     if has_orders:
         # scrub personal data, the row stays so Order.user_id still points at something
-        user.email = f"deleted-{user.user_id}@invalid"
-        user.password = ""
+        user.email = f"deleted-{user.user_id}@invalid.example" # .example is reserved (RFC 2606) and, unlike .invalid, passes EmailStr
+        user.password_hash = hash_password(secrets.token_urlsafe(32)) # destroy the old hash, leave a well-formed one nothing can match
         user.deleted_at = datetime.now(UTC)
         user.cart_items.clear() # delete-orphan cascade removes the cart rows
     else:

@@ -28,7 +28,8 @@ class UserPrivate(UserPublic):
 
 class UserUpdate(BaseModel):
     email: EmailStr | None = Field(default=None)
-    password: str | None = Field(default=None)
+    password: str | None = Field(default=None, min_length=8)
+    current_password: str | None = Field(default=None) # required to change email or password
 
 class Token(BaseModel):
     access_token: str

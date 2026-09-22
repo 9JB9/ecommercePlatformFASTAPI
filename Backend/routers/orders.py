@@ -9,7 +9,7 @@ from sqlalchemy import select
 import models
 
 # Dependencies
-from dependencies import get_existing_user
+from auth import CurrentUser
 
 # Schemas
 from schemas import OrderResponse
@@ -18,11 +18,11 @@ router = APIRouter()
 
 # POST, Checkout cart items (creates an order from the user's cart)
 @router.post(
-    "/{user_id}",
+    "",
     response_model=OrderResponse,
     status_code=status.HTTP_201_CREATED,
 )
-def checkout_cart(user: Annotated[models.User, Depends(get_existing_user)], db: Annotated[Session, Depends(get_db)]):
+def checkout_cart(user: CurrentUser, db: Annotated[Session, Depends(get_db)]):
 
     # if cart_items is empty, dont checkout
     cart_items = db.execute(
@@ -62,10 +62,10 @@ def checkout_cart(user: Annotated[models.User, Depends(get_existing_user)], db: 
 
 # GET, Access all of a user's orders
 @router.get(
-    "/{user_id}",
+    "",
     response_model=list[OrderResponse],
 )
-def get_orders(user: Annotated[models.User, Depends(get_existing_user)], db: Annotated[Session, Depends(get_db)]):
+def get_orders(user: CurrentUser, db: Annotated[Session, Depends(get_db)]):
 
     orders = db.execute(
         select(models.Order)
@@ -77,10 +77,10 @@ def get_orders(user: Annotated[models.User, Depends(get_existing_user)], db: Ann
 
 # GET, Access a single order
 @router.get(
-    "/{user_id}/{order_id}",
+    "/{order_id}",
     response_model=OrderResponse,
 )
-def get_order(order_id: int, user: Annotated[models.User, Depends(get_existing_user)], db: Annotated[Session, Depends(get_db)]):
+def get_order(order_id: int, user: CurrentUser, db: Annotated[Session, Depends(get_db)]):
 
     existing_order = db.execute(
         select(models.Order)

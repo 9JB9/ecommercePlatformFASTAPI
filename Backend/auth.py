@@ -1,5 +1,16 @@
 from datetime import UTC, datetime, timedelta
 
+from typing import Annotated
+
+# Fastapi
+from fastapi import Depends, status, HTTPException
+
+# Database
+from database import get_db
+from sqlalchemy.orm import Session
+from sqlalchemy import select
+import models
+
 import jwt
 from fastapi.security import OAuth2PasswordBearer
 from pwdlib import PasswordHash
@@ -36,7 +47,6 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None) -> s
     )
     return encoded_jwt
 
-
 # verify_access_token
 def verify_access_token(token: str) -> str | None:
     """Verify a JWT access token and return the subject (user id) if valid."""
@@ -51,3 +61,49 @@ def verify_access_token(token: str) -> str | None:
         return None
     else:
         return payload.get("sub") # returns user id
+
+def get_current_user(
+    token: Annotated[str, Depends(oauth2_scheme)], 
+    db: Annotated[Session, Depends(get_db)]
+    ) -> models.User:
+
+    # verify access token
+    # convert string to int user_id
+    # if timed_out or invalid user, return error
+    # else query datebase for user and return existing user
+
+    user_id = verify_access_token(token)
+    if user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Validate user_id is a valid integer (defense against malformed JWT)
+    try:
+        user_id_int = int(user_id)
+    except (TypeError, ValueError):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # soft-deleted users are excluded: their tokens stay signed and unexpired after deletion
+    result = db.execute(
+        select(models.User)
+        .where(models.User.user_id == user_id_int)
+        .where(models.User.deleted_at.is_(None)),
+    )
+    user = result.scalars().first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return user
+
+
+CurrentUser = Annotated[models.User, Depends(get_current_user)]
