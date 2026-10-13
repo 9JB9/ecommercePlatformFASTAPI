@@ -21,7 +21,7 @@ def seedDB (): # doesn't need to be async, we are running this once and never to
 
     print("Beginning the seeding, stand by... 🌱")
 
-    for sneaker in sneaker_data: 
+    for sneaker in sneaker_data:
         product = Product(
             name=sneaker.get("title"),
             brand=sneaker.get("brand"),

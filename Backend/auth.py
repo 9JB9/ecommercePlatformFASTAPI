@@ -62,8 +62,16 @@ def verify_access_token(token: str) -> str | None:
     else:
         return payload.get("sub") # returns user id
 
+def credentials_exception() -> HTTPException:
+    """Same 401 for every auth failure, so callers can't tell which check failed."""
+    return HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid or expired token",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
 def get_current_user(
-    token: Annotated[str, Depends(oauth2_scheme)], 
+    token: Annotated[str, Depends(oauth2_scheme)],
     db: Annotated[Session, Depends(get_db)]
     ) -> models.User:
 
@@ -74,21 +82,13 @@ def get_current_user(
 
     user_id = verify_access_token(token)
     if user_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise credentials_exception()
 
     # Validate user_id is a valid integer (defense against malformed JWT)
     try:
         user_id_int = int(user_id)
     except (TypeError, ValueError):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise credentials_exception()
 
     # soft-deleted users are excluded: their tokens stay signed and unexpired after deletion
     result = db.execute(
@@ -98,12 +98,21 @@ def get_current_user(
     )
     user = result.scalars().first()
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise credentials_exception()
     return user
 
 
 CurrentUser = Annotated[models.User, Depends(get_current_user)]
+
+
+# builds on get_current_user, so an admin still needs a valid, unexpired token for a non-deleted user
+def get_current_admin(user: CurrentUser) -> models.User:
+    if not user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
+    return user
+
+
+AdminUser = Annotated[models.User, Depends(get_current_admin)]

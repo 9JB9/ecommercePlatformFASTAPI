@@ -48,11 +48,11 @@ def create_user(user: UserCreate, db: Annotated[Session, Depends(get_db)]):
     existing_user = result.scalars().first()
 
     if existing_user:
-        raise HTTPException(detail="User already exists", status_code=status.HTTP_409_CONFLICT)
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User already exists")
 
     new_user = models.User(
-        email= user.email.lower(),
-        password_hash= hash_password(user.password)
+        email=user.email.lower(),
+        password_hash=hash_password(user.password)
     )
 
     db.add(new_user)
@@ -69,9 +69,11 @@ def login_for_access_token(
 ):
     # Look up user by email (case-insensitive)
     # Note: OAuth2PasswordRequestForm uses "username" field, but we treat it as email
+    # soft-deleted users are excluded, matching get_current_user (their credentials are also scrubbed in delete_user)
     result = db.execute(
         select(models.User).where(
             func.lower(models.User.email) == form_data.username.lower(),
+            models.User.deleted_at.is_(None),
         ),
     )
     user = result.scalars().first()
@@ -107,8 +109,11 @@ def read_current_user(user: CurrentUser):
 )
 def get_user(user_id: int, db: Annotated[Session, Depends(get_db)]):
 
+    # soft-deleted users are hidden, to the outside they no longer exist
     existing_user = db.execute(
-        select(models.User).where(models.User.user_id == user_id)
+        select(models.User)
+        .where(models.User.user_id == user_id)
+        .where(models.User.deleted_at.is_(None))
     ).scalars().first()
 
     if not existing_user:
@@ -124,7 +129,7 @@ def get_user(user_id: int, db: Annotated[Session, Depends(get_db)]):
 )
 def update_user(user_update: UserUpdate, user: OwnedUser, db: Annotated[Session, Depends(get_db)]):
 
-    update_data = user_update.model_dump(exclude_unset=True) # converted into dictionary
+    update_data = user_update.model_dump(exclude_unset=True, exclude_none=True) # converted into dictionary, explicit nulls are ignored instead of crashing on None.lower()
     current_password = update_data.pop("current_password", None)
 
     # changing credentials requires proving you know the current password,
@@ -139,11 +144,14 @@ def update_user(user_update: UserUpdate, user: OwnedUser, db: Annotated[Session,
     # if email is changing, make sure no other user already has it
     if "email" in update_data:
         email_taken = db.execute(
-            select(models.User).where(func.lower(models.User.email) == update_data["email"].lower(), models.User.user_id != user.user_id)
+            select(models.User).where(
+                func.lower(models.User.email) == update_data["email"].lower(),
+                models.User.user_id != user.user_id,
+            )
         ).scalars().first()
 
         if email_taken:
-            raise HTTPException(detail="Email already in use", status_code=status.HTTP_409_CONFLICT)
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already in use")
 
     for field, value in update_data.items():
         if field == "email":

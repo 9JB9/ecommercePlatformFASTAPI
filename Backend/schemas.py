@@ -1,5 +1,7 @@
+from datetime import datetime
+from enum import StrEnum
+
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
-# from .models import Product
 
 class SneakerResponse(BaseModel):
     product_id: int
@@ -51,11 +53,35 @@ class CartItemResponse(BaseModel):
 
 class OrderItemResponse(BaseModel):
     order_item_id: int
+    product_id: int
     item_name: str
+    fixed_price: float # price per item at time of purchase
     quantity: int
 
 class OrderResponse(BaseModel):
     order_id: int
-    total: int
+    status: str
+    total: float # matches Order.total Numeric(10, 2), an int would reject totals with cents
+    created_date: datetime
     items: list[OrderItemResponse]
     user: UserPublic
+
+# Admin
+class OrderStatus(StrEnum):
+    # stored as plain strings in Order.status, the allowed changes between them live in routers/admins.py
+    PENDING = "pending"
+    SHIPPED = "shipped"
+    DELIVERED = "delivered"
+    CANCELLED = "cancelled"
+
+class OrderStatusUpdate(BaseModel):
+    status: OrderStatus # anything else is rejected with a 422
+
+class AdminUserResponse(BaseModel):
+    user_id: int
+    email: EmailStr
+    is_admin: bool
+    deleted_at: datetime | None # set for soft-deleted users, see delete_user
+
+class AdminUserDetail(AdminUserResponse):
+    orders: list[OrderResponse]

@@ -1,4 +1,4 @@
-# Fastapi 
+# Fastapi
 from fastapi import FastAPI, status, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from routers import cart, orders, products, users
+from routers import admins, cart, orders, products, users
 
 # Table creation in database
 Base.metadata.create_all(bind=engine)
@@ -36,6 +36,7 @@ app.include_router(users.router, prefix="/api/users", tags=["users"])
 app.include_router(products.router, prefix="/api/products", tags=["products"])
 app.include_router(cart.router, prefix="/api/cart", tags=["cart"])
 app.include_router(orders.router, prefix="/api/orders", tags=["orders"])
+app.include_router(admins.router, prefix="/api/admin", tags=["admin"])
 
 
 # Handle General HTTP Errors
@@ -53,6 +54,6 @@ def handle_general_http_errors(request: Request, exception: StarletteHTTPExcepti
 @app.exception_handler(RequestValidationError)
 def handle_validation_errors(request: Request, exception: RequestValidationError):
     return JSONResponse(
-            content=exception.errors(),
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT
+        content=exception.errors(),
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT
     )

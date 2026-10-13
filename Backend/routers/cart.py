@@ -16,6 +16,19 @@ from schemas import CartItemResponse, CartItemCreate, CartItemUpdate
 
 router = APIRouter()
 
+# lookup shared by PATCH and DELETE: the cart item must exist and belong to the caller
+def get_cart_item_or_404(cart_item_id: int, user: models.User, db: Session) -> models.CartItem:
+    existing_cart_item = db.execute(
+        select(models.CartItem)
+        .where(models.CartItem.cart_item_id == cart_item_id)
+        .where(models.CartItem.user_id == user.user_id)
+    ).scalars().first()
+
+    if not existing_cart_item:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cart item not found")
+
+    return existing_cart_item
+
 # GET, Access items in cart
 @router.get(
     "",
@@ -41,8 +54,8 @@ def add_item_to_cart(item: CartItemCreate, user: CurrentUser, db: Annotated[Sess
 
     # verify item.product_id is an actual product (not sure if necessary)
     existing_product = db.execute(
-        select(models.Product).
-        where(models.Product.product_id == item.product_id)
+        select(models.Product)
+        .where(models.Product.product_id == item.product_id)
     ).scalars().first()
 
     if not existing_product:
@@ -50,7 +63,9 @@ def add_item_to_cart(item: CartItemCreate, user: CurrentUser, db: Annotated[Sess
 
     # if item exists in cart, increase quantity by 1
     existing_cart_item = db.execute(
-        select(models.CartItem).where(models.CartItem.user_id == user.user_id).where(models.CartItem.product_id == item.product_id)
+        select(models.CartItem)
+        .where(models.CartItem.user_id == user.user_id)
+        .where(models.CartItem.product_id == item.product_id)
     ).scalars().first()
 
     if existing_cart_item:
@@ -79,14 +94,7 @@ def add_item_to_cart(item: CartItemCreate, user: CurrentUser, db: Annotated[Sess
 )
 def update_cart_item(cart_item_id: int, item: CartItemUpdate, user: CurrentUser, db: Annotated[Session, Depends(get_db)]):
 
-    existing_cart_item = db.execute(
-        select(models.CartItem)
-        .where(models.CartItem.cart_item_id == cart_item_id)
-        .where(models.CartItem.user_id == user.user_id)
-    ).scalars().first()
-
-    if not existing_cart_item:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cart item not found")
+    existing_cart_item = get_cart_item_or_404(cart_item_id, user, db)
 
     existing_cart_item.quantity = item.quantity
     db.commit()
@@ -101,14 +109,7 @@ def update_cart_item(cart_item_id: int, item: CartItemUpdate, user: CurrentUser,
 )
 def delete_cart_item(cart_item_id: int, user: CurrentUser, db: Annotated[Session, Depends(get_db)]):
 
-    existing_cart_item = db.execute(
-        select(models.CartItem)
-        .where(models.CartItem.cart_item_id == cart_item_id)
-        .where(models.CartItem.user_id == user.user_id)
-    ).scalars().first()
-
-    if not existing_cart_item:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cart item not found")
+    existing_cart_item = get_cart_item_or_404(cart_item_id, user, db)
 
     db.delete(existing_cart_item)
     db.commit()

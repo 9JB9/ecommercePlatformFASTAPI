@@ -1,4 +1,4 @@
-from sqlalchemy import ForeignKey, Integer, String, Text, DateTime, Numeric
+from sqlalchemy import ForeignKey, Integer, String, DateTime, Numeric
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from datetime import datetime, UTC
 from database import Base
@@ -11,6 +11,7 @@ class User(Base):
     email: Mapped[str] = mapped_column(String)
 
     password_hash: Mapped[str] = mapped_column(String(200), nullable=False)
+    is_admin: Mapped[bool] = mapped_column(default=False) # only set with harvest_scripts/make_admin.py, never through the api
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None) # set when a user with orders is "deleted", see delete_user
     orders: Mapped[list["Order"]] = relationship(back_populates="user") # intentionally no cascade: orders are records to keep, users with orders are soft-deleted
     cart_items: Mapped[list["CartItem"]] = relationship(
@@ -30,21 +31,23 @@ class Product(Base):
     brand: Mapped[str] = mapped_column(String)
     description: Mapped[str] = mapped_column(String)
 
+
 class OrderItem(Base):
     # table represents item that is ordered at time of purchase
     __tablename__ = "order_items"
 
     order_item_id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    fixed_price: Mapped[float] = mapped_column(Numeric(10,2))
+    fixed_price: Mapped[float] = mapped_column(Numeric(10, 2))
     item_name: Mapped[str] = mapped_column(String)
     quantity: Mapped[int] = mapped_column(Integer, default=1)
 
-    order_id : Mapped[int] = mapped_column(ForeignKey("orders.order_id")) # orders being the name of the table its from and not the name of the class it's from :(
+    order_id: Mapped[int] = mapped_column(ForeignKey("orders.order_id")) # orders being the name of the table its from and not the name of the class it's from :(
     product_id: Mapped[int] = mapped_column(ForeignKey("products.product_id")) # tying the item to where the product originally comes from
 
     order: Mapped["Order"] = relationship(back_populates="items") # incomplete
-    product: Mapped["Product"] = relationship() 
-    
+    product: Mapped["Product"] = relationship()
+
+
 class CartItem(Base):
     # table represents a mutable queue before any order is made
     __tablename__ = "cart_items"
@@ -55,15 +58,16 @@ class CartItem(Base):
     quantity: Mapped[int] = mapped_column(Integer, default=1)
 
     user: Mapped["User"] = relationship(back_populates="cart_items")
-    product: Mapped["Product"] = relationship() # no point in having cart_items in product, but product will never actually hold 
+    product: Mapped["Product"] = relationship() # no point in having cart_items in product, but product will never actually hold
                                                 # cart items... cart items just happen to be stored inside of product...
+
 
 class Order(Base):
     __tablename__ = "orders"
     order_id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.user_id"))
     status: Mapped[str] = mapped_column(String, default="pending")
-    total: Mapped[float] = mapped_column(Numeric(10,2))
+    total: Mapped[float] = mapped_column(Numeric(10, 2))
     created_date: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),
@@ -71,5 +75,3 @@ class Order(Base):
 
     items: Mapped[list["OrderItem"]] = relationship(back_populates="order") # sqlalchemy handles the list wrapper as a notice to return multiple rows, its pretty cool
     user: Mapped["User"] = relationship(back_populates="orders")
-
-
